@@ -1,0 +1,171 @@
+---
+title: "Manhattan Residential Condominiums"
+author: "Niket"
+date: "July 26, 2018"
+output: rmarkdown::github_document
+---
+
+```{r}
+manhtn18 <- read.csv(file.choose(), header = TRUE, skip = 1, na.strings = c("NA", "", " ", "."))
+```
+
+```{r}
+# remove first empty row
+manhtn18 <- manhtn18[-1,]
+```
+
+
+```{r}
+str(manhtn18)
+```
+
+We should only include columns with Brooklyn listings without comparable rentals, which is 1 to 15 columns
+```{r}
+manhtn <- manhtn18[,1:15]
+```
+
+***
+***
+
+```{r}
+summary(manhtn$Building.Class)
+```
+R2	CONDO; RESIDENTIAL UNIT IN WALK-UP BLDG.
+R4	CONDO; RESIDENTIAL UNIT IN ELEVATOR BLDG.
+R9	CO-OP WITHIN A CONDOMINIUM
+RR	CONDO RENTALS
+
+
+Elevator or walk-up (but walk-up must be lower than 3rd floor) and
+Must be condominium (not co-op or condop) so we should drop R9 and Missing values(NA's)
+```{r}
+manhtn <- manhtn[!manhtn$Building.Class == "R9  -CONDOPS",]
+manhtn <- manhtn[!is.na(manhtn$Building.Class),]
+# manhtn_1 <- manhtn_1[!manhtn$Building.Class == "RR  -CONRENT",]
+```
+
+```{r}
+summary(manhtn$Building.Class)
+```
+
+***
+***
+
+Market Value: less than $3,500,000
+
+```{r}
+manhtn$Full.Market.Value <- as.numeric(gsub(",", "", manhtn$Full.Market.Value)) #As the numerical values in Price column are comma seperated, remove comma
+
+summary(manhtn$Full.Market.Value)
+```
+
+```{r}
+manhtn <- manhtn[manhtn$Full.Market.Value < 3500000,]
+
+summary(manhtn$Full.Market.Value)
+```
+
+***
+***
+
+Price per square foot: less than $2,000
+
+```{r}
+# manhtn$Market.Value.per.SqFt <- as.numeric(gsub(",","", manhtn$Market.Value.per.SqFt)) #As the numerical values in Price.per.sq.foot column are comma seperated, remove comma
+
+summary(manhtn$Market.Value.per.SqFt)
+```
+All the data is under $2,000, but we can still clean for future purposes
+
+```{r}
+manhtn <- manhtn[manhtn$Market.Value.per.SqFt < 2000,]
+
+summary(manhtn$Market.Value.per.SqFt)
+```
+
+***
+***
+
+Close by Location: Manhattan south of 96th Street
+
+```{r}
+manhtn$Address <- as.character(manhtn$Address)
+```
+
+Add NY to all the address
+```{r}
+manhtn$Address <- paste0(manhtn$Address, " NY")
+```
+
+
+```{r}
+# install.packages("ggmap") # an R interface to the Google Maps API
+```
+
+```{r}
+sum(is.na(manhtn)) #check for missing values
+```
+
+
+```{r}
+# calculate distance between two place names
+# we added NY to the address so that it does not pick location from another state
+library(ggmap)
+dist_96 <- mapdist(from = manhtn$Address, to = "Manhattan south of 96th Street")
+```
+
+```{r}
+# fill distance from 96th street in our data
+manhtn$Distance.to.96.Street <- dist_96$miles[match(manhtn$Address, dist_96$from)]
+```
+
+```{r}
+# Looking at the distance
+summary(manhtn$Distance.to.96.Street)
+```
+
+
+***
+***
+
+Rental yield of 2% or more = Net Income divided by Total Price
+
+```{r}
+# Rename BROOKLYN.Ã.Â.Â..CONDOMINIUMS.COMPARABLE.PROPERTIES.Ã.Â.Â..Net.Operating.Income to Net.Operating.Income
+# colnames(manhtn_1)[colnames(manhtn_1)=="BROOKLYN.Ã.Â.Â..CONDOMINIUMS.COMPARABLE.PROPERTIES.Ã.Â.Â..Net.Operating.Income"] <- "Net.Operating.Income"
+```
+
+```{r}
+manhtn$Net.Operating.Income <- as.numeric(gsub(",", "", manhtn$Net.Operating.Income)) #As the numerical values in Price.per.sq.foot column are comma seperated, remove comma
+
+summary(manhtn$Net.Operating.Income)
+```
+
+```{r}
+manhtn$Rental.Yield <- ((manhtn$Net.Operating.Income / manhtn$Full.Market.Value) * 100) 
+```
+
+
+```{r}
+manhtn <- manhtn[manhtn$Rental.Yield >= 2,] # Rental yield of 2% or more
+
+summary(manhtn$Rental.Yield)
+```
+
+***
+***
+
+
+Look for the closest locations(under 5 miles) order by Market Value
+```{r}
+distance_order <- manhtn[with(manhtn,order(Distance.to.96.Street)),]
+distance_order <- distance_order[distance_order$Distance.to.96.Street < 5,]
+```
+
+```{r}
+price_order <- distance_order[with(distance_order, order(Full.Market.Value)),]
+price_order[1:30,]
+```
+
+***
+***
